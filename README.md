@@ -1,0 +1,1 @@
+# Cartoon through slices in all views to be able to segment better. Restores original view when cancelled.
