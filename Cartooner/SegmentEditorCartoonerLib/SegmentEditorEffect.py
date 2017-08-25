@@ -36,7 +36,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     self.cartoonRangeSlider.setMRMLScene(slicer.mrmlScene)
     self.cartoonRangeSlider.minimum = 0
     self.cartoonRangeSlider.maximum = 10
-    self.cartoonRangeSlider.value = 2
+    self.cartoonRangeSlider.value = 5
     self.cartoonRangeSlider.setToolTip('Increasing this value smooths the segmentation and reduces leaks. This is the sigma used for edge detection.')
     self.scriptedEffect.addLabeledOptionsWidget("Slice range:", self.cartoonRangeSlider)
     self.cartoonRangeSlider.connect('valueChanged(double)', self.updateMRMLFromGUI)
@@ -45,9 +45,9 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
      # Cartoon speed slider
     self.cartoonSpeedSlider = slicer.qMRMLSliderWidget()
     self.cartoonSpeedSlider.setMRMLScene(slicer.mrmlScene)
-    self.cartoonSpeedSlider.minimum = 0
-    self.cartoonSpeedSlider.maximum = 10
-    self.cartoonSpeedSlider.value = 2
+    self.cartoonSpeedSlider.minimum = 1
+    self.cartoonSpeedSlider.maximum = 100
+    self.cartoonSpeedSlider.value = 20
     self.cartoonSpeedSlider.setToolTip('Increasing this value smooths the segmentation and reduces leaks. This is the sigma used for edge detection.')
     self.scriptedEffect.addLabeledOptionsWidget("Slice speed:", self.cartoonSpeedSlider)
     self.cartoonSpeedSlider.connect('valueChanged(double)', self.updateMRMLFromGUI)
@@ -63,15 +63,50 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
 
     self.colorsRAS = ['Yellow', 'Green', 'Red']
 
+    self.hotkey = qt.QShortcut(qt.QKeySequence("Ctrl+Shift+C"), slicer.util.mainWindow())
+    self.hotkey.connect('activated()', self.onApply)
+    self.hotkey2 = qt.QShortcut(qt.QKeySequence("Ctrl+Alt+Shift+C"), slicer.util.mainWindow())
+    self.hotkey2.connect('activated()', self.onAltKey)
+
+  def onAltKey(self):
+    self.scriptedEffect.selectEffect("Cartooner")
+
   def createCursor(self, widget):
     # Turn off effect-specific cursor for this effect
     return slicer.util.mainWindow().cursor
 
+  def masterVolumeNodeChanged(self):
+    self.updateGUIFromMRML()
+
   def setMRMLDefaults(self):
-    self.scriptedEffect.setParameterDefault("ObjectScaleMm", 2.0)
+    pass
 
   def updateGUIFromMRML(self):
-    pass
+    masterVolumeNode = self.scriptedEffect.parameterSetNode().GetMasterVolumeNode()
+    bounds = [0] * 6
+    masterVolumeNode.GetBounds(bounds)
+
+    currentOffsets = {}
+    ranges = []
+
+    for i in range(len(self.colorsRAS)):
+        color = self.colorsRAS[i]
+        currentOffsets[color] = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceOffset()
+        # Get range from min bound
+        ranges.append(currentOffsets[color] - bounds[i*2])
+        # Get range from max bound
+        ranges.append(bounds[i*2+1] - currentOffsets[color])
+
+    minRange = min(ranges)
+    minColorIndex = (ranges.index(minRange) - 1) / 2
+
+    if(minRange < 0 or minColorIndex < 0):
+        logging.error("Offset error, please contact the extension developer for support")
+        return
+
+    else:
+        self.cartoonRangeSlider.minimum = 1
+        self.cartoonRangeSlider.maximum = minRange / masterVolumeNode.GetSpacing()[minColorIndex]
 
   def updateMRMLFromGUI(self):
     pass
@@ -84,7 +119,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     self.onCancelRequested()
 
     if self.cancelRequested:
-        # Revert to original view
+        # Restore original view to before button was pressed
         for color in self.colorsRAS:
             slicer.app.layoutManager().sliceWidget(color).sliceLogic().SetSliceOffset(self.originalRAS[color])
 
@@ -105,7 +140,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
         bounds = [0] * 6
         masterVolumeNode.GetBounds(bounds)
 
-        # Get period
+        # Get period (how many seconds to stay per slice)
         period = 1 / self.cartoonSpeedSlider.value
 
         self.steps = {}
@@ -142,62 +177,3 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
 
         self.currentStepIndex[color] = self.currentStepIndex[color] - 1 if self.reverseStep else self.currentStepIndex[color] + 1
         slicer.app.layoutManager().sliceWidget(color).sliceLogic().SetSliceOffset(self.steps[color][self.currentStepIndex[color]])
-
-
-  def onApply2(self):
-
-    # Get list of visible segment IDs, as the effect ignores hidden segments.
-    segmentationNode = self.scriptedEffect.parameterSetNode().GetSegmentationNode()
-    visibleSegmentIds = vtk.vtkStringArray()
-    segmentationNode.GetDisplayNode().GetVisibleSegmentIDs(visibleSegmentIds)
-    if visibleSegmentIds.GetNumberOfValues() == 0:
-      logging.info("Smoothing operation skipped: there are no visible segments")
-      return
-
-    # This can be a long operation - indicate it to the user
-    qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
-
-    # Allow users revert to this state by clicking Undo
-    self.scriptedEffect.saveStateForUndo()
-
-    # Export master image data to temporary new volume node.
-    # Note: Although the original master volume node is already in the scene, we do not use it here,
-    # because the master volume may have been resampled to match segmentation geometry.
-    import vtkSegmentationCorePython as vtkSegmentationCore
-    masterVolumeNode = slicer.vtkMRMLScalarVolumeNode()
-    slicer.mrmlScene.AddNode(masterVolumeNode)
-    masterVolumeNode.SetAndObserveTransformNodeID(segmentationNode.GetTransformNodeID())
-    slicer.vtkSlicerSegmentationsModuleLogic.CopyOrientedImageDataToVolumeNode(self.scriptedEffect.masterVolumeImageData(), masterVolumeNode)
-    # Generate merged labelmap of all visible segments, as the filter expects a single labelmap with all the labels.
-    mergedLabelmapNode = slicer.vtkMRMLLabelMapVolumeNode()
-    slicer.mrmlScene.AddNode(mergedLabelmapNode)
-    slicer.vtkSlicerSegmentationsModuleLogic.ExportSegmentsToLabelmapNode(segmentationNode, visibleSegmentIds, mergedLabelmapNode, masterVolumeNode)
-
-    # Run segmentation algorithm
-    import SimpleITK as sitk
-    import sitkUtils
-    # Read input data from Slicer into SimpleITK
-    labelImage = sitk.ReadImage(sitkUtils.GetSlicerITKReadWriteAddress(mergedLabelmapNode.GetName()))
-    backgroundImage = sitk.ReadImage(sitkUtils.GetSlicerITKReadWriteAddress(masterVolumeNode.GetName()))
-    # Run watershed filter
-    featureImage = sitk.GradientMagnitudeRecursiveGaussian(backgroundImage, float(self.scriptedEffect.doubleParameter("ObjectScaleMm")))
-    del backgroundImage
-    f = sitk.MorphologicalWatershedFromMarkersImageFilter()
-    f.SetMarkWatershedLine(False)
-    f.SetFullyConnected(False)
-    labelImage = f.Execute(featureImage, labelImage)
-    del featureImage
-    # Pixel type of watershed output is the same as the input. Convert it to int16 now.
-    if labelImage.GetPixelID() != sitk.sitkInt16:
-      labelImage = sitk.Cast(labelImage, sitk.sitkInt16)
-    # Write result from SimpleITK to Slicer. This currently performs a deep copy of the bulk data.
-    sitk.WriteImage(labelImage, sitkUtils.GetSlicerITKReadWriteAddress(mergedLabelmapNode.GetName()))
-    mergedLabelmapNode.GetImageData().Modified()
-    mergedLabelmapNode.Modified()
-
-    # Update segmentation from labelmap node and remove temporary nodes
-    slicer.vtkSlicerSegmentationsModuleLogic.ImportLabelmapToSegmentationNode(mergedLabelmapNode, segmentationNode, visibleSegmentIds)
-    slicer.mrmlScene.RemoveNode(masterVolumeNode)
-    slicer.mrmlScene.RemoveNode(mergedLabelmapNode)
-
-    qt.QApplication.restoreOverrideCursor()
