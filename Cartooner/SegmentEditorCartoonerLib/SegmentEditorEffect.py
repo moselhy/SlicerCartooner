@@ -89,6 +89,12 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
             slicer.app.layoutManager().sliceWidget(color).sliceLogic().SetSliceOffset(self.originalRAS[color])
 
     else:
+        pathToCursor = os.path.join(os.path.dirname(__file__), 'cursor.png')
+        pixelMap = qt.QPixmap(pathToCursor)
+        cursor = qt.QCursor(pixelMap)
+
+        qt.QApplication.setOverrideCursor(cursor)
+
         import threading
         self.originalRAS = {}
         for color in self.colorsRAS:
@@ -121,6 +127,8 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
             self.stepThrough()
             timer.wait(period)
             slicer.app.processEvents()
+
+        qt.QApplication.restoreOverrideCursor()
 
 
   def stepThrough(self):
