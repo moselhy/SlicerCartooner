@@ -91,9 +91,8 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     self.currentOffsets = {}
     self.originalRAS = {}
     for color in self.colorsRAS:
-        if self.sliceNodeSelector.currentNode() == None or color != self.sliceNodeSelector.currentNode().GetName():
-            self.currentOffsets[color] = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().GetSliceOffset()
-            self.originalRAS[color] = self.currentOffsets[color]
+        self.currentOffsets[color] = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().GetSliceOffset()
+        self.originalRAS[color] = self.currentOffsets[color]
 
     self.updateMRMLFromGUI()
     
@@ -173,8 +172,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
         self.restoringViews = True
         # Restore original view to before button was pressed
         for color in self.colorsRAS:
-            if self.sliceNodeSelector.currentNode() == None or color != self.sliceNodeSelector.currentNode().GetName():
-                slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().SetSliceOffset(self.originalRAS[color])
+            slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().SetSliceOffset(self.originalRAS[color])
         self.restoringViews = False
 
     else:
