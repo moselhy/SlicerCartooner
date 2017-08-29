@@ -50,30 +50,53 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     self.cartoonSpeedSlider.setToolTip('How many slices you want to cartoon per second')
     self.scriptedEffect.addLabeledOptionsWidget("Slice speed:", self.cartoonSpeedSlider)
 
+    # Input view selector
+    self.sliceNodeSelector = slicer.qMRMLNodeComboBox()
+    self.sliceNodeSelector.nodeTypes = ["vtkMRMLSliceNode"]
+    self.sliceNodeSelector.addEnabled = False
+    self.sliceNodeSelector.removeEnabled = False
+    self.sliceNodeSelector.noneEnabled = True
+    self.sliceNodeSelector.showHidden = False
+    self.sliceNodeSelector.showChildNodeTypes = False
+    self.sliceNodeSelector.setMRMLScene( slicer.mrmlScene )
+    self.sliceNodeSelector.setToolTip("This slice will be excluded during cartooning.")
+    self.scriptedEffect.addLabeledOptionsWidget("Exclude view:", self.sliceNodeSelector)
+
+
     # Start button
     self.applyButton = qt.QPushButton("Start")
     self.applyButton.objectName = self.__class__.__name__ + 'Start'
     self.applyButton.setToolTip("Start/Stop cartooning (Alt+C)")
     self.scriptedEffect.addOptionsWidget(self.applyButton)
-    self.applyButton.connect('clicked()', self.onApply)
 
+    # Set Hotkeys
+    self.hotkey = qt.QShortcut(qt.QKeySequence("Alt+C"), slicer.util.mainWindow())
+    self.hotkey2 = qt.QShortcut(qt.QKeySequence("Ctrl+Alt+C"), slicer.util.mainWindow())
+
+    # Connections
+    self.applyButton.connect('clicked()', self.onApply)
+    self.sliceNodeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateGUIFromMRML)
+    self.hotkey.connect('activated()', self.cartoonHotkey)
+    self.hotkey2.connect('activated()', self.openSettings)
+
+    # Initialize variables
+    self.setupVariables()
+
+  def setupVariables(self):
     self.runningStatus = False
 
     self.colorsRAS = ['Yellow', 'Green', 'Red']
-
-    self.hotkey = qt.QShortcut(qt.QKeySequence("Alt+C"), slicer.util.mainWindow())
-    self.hotkey.connect('activated()', self.cartoonHotkey)
-    self.hotkey2 = qt.QShortcut(qt.QKeySequence("Ctrl+Alt+C"), slicer.util.mainWindow())
-    self.hotkey2.connect('activated()', self.openSettings)
 
     self.restoringViews = False
     self.currentOffsets = {}
     self.originalRAS = {}
     for color in self.colorsRAS:
-        self.currentOffsets[color] = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().GetSliceOffset()
-        self.originalRAS[color] = self.currentOffsets[color]
+        if self.sliceNodeSelector.currentNode() == None or color != self.sliceNodeSelector.currentNode().GetName():
+            self.currentOffsets[color] = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().GetSliceOffset()
+            self.originalRAS[color] = self.currentOffsets[color]
 
     self.updateMRMLFromGUI()
+    
 
   def cartoonHotkey(self):
     if self.applyButton.enabled:
@@ -93,8 +116,9 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
   def onSliceLogicModifiedEvent(self, caller, event):
     for color in self.colorsRAS:
         sliceNode = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode()
-        if sliceNode.GetSliceOffset() != self.currentOffsets[color]:
-            self.updateGUIFromMRML()
+        if self.sliceNodeSelector.currentNode() == None or color != self.sliceNodeSelector.currentNode().GetName():
+            if sliceNode.GetSliceOffset() != self.currentOffsets[color]:
+                self.updateGUIFromMRML()
 
   def setMRMLDefaults(self):
     pass
@@ -111,16 +135,17 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
 
             for i in range(len(self.colorsRAS)):
                 color = self.colorsRAS[i]
-                self.currentOffsets[color] = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().GetSliceOffset()
-                # Get range from min bound
-                minBound = self.currentOffsets[color] - bounds[i*2]
-                # Get range from max bound
-                maxBound = bounds[i*2+1] - self.currentOffsets[color]
-                # Get spacing of the current color
-                colorSpacing = masterVolumeNode.GetSpacing()[i]
-                # Parse ranges into their respective spacings
-                ranges.append(minBound / colorSpacing)
-                ranges.append(maxBound / colorSpacing)
+                if self.sliceNodeSelector.currentNode() == None or color != self.sliceNodeSelector.currentNode().GetName():
+                    self.currentOffsets[color] = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().GetSliceOffset()
+                    # Get range from min bound
+                    minBound = self.currentOffsets[color] - bounds[i*2]
+                    # Get range from max bound
+                    maxBound = bounds[i*2+1] - self.currentOffsets[color]
+                    # Get spacing of the current color
+                    colorSpacing = masterVolumeNode.GetSpacing()[i]
+                    # Parse ranges into their respective spacings
+                    ranges.append(minBound / colorSpacing)
+                    ranges.append(maxBound / colorSpacing)
 
             # Round ranges down
             ranges = [int(r) for r in ranges]
@@ -148,7 +173,8 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
         self.restoringViews = True
         # Restore original view to before button was pressed
         for color in self.colorsRAS:
-            slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().SetSliceOffset(self.originalRAS[color])
+            if self.sliceNodeSelector.currentNode() == None or color != self.sliceNodeSelector.currentNode().GetName():
+                slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().SetSliceOffset(self.originalRAS[color])
         self.restoringViews = False
 
     else:
@@ -203,4 +229,5 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
             self.reverseStep = False
 
         self.currentStepIndex[color] = self.currentStepIndex[color] - 1 if self.reverseStep else self.currentStepIndex[color] + 1
-        slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().SetSliceOffset(self.steps[color][self.currentStepIndex[color]])
+        if self.sliceNodeSelector.currentNode() == None or color != self.sliceNodeSelector.currentNode().GetName():
+            slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().SetSliceOffset(self.steps[color][self.currentStepIndex[color]])
