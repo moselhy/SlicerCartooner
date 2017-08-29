@@ -2,7 +2,7 @@ import os
 import unittest
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
-import logging
+import logging, threading
 
 class SegmentEditorCartooner(ScriptedLoadableModule):
   """Uses ScriptedLoadableModule base class, available at:
@@ -45,9 +45,9 @@ class SegmentEditorCartoonerTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    self.test_Cartooner1()
+    self.test_Cartooner()
 
-  def test_Cartooner1(self):
+  def test_Cartooner(self):
     """
     Basic automated test of the segmentation method:
     - Create segmentation by placing sphere-shaped seeds
@@ -56,7 +56,7 @@ class SegmentEditorCartoonerTest(ScriptedLoadableModuleTest):
     The test can be executed from SelfTests module (test name: SegmentEditorCartooner)
     """
 
-    self.delayDisplay("Starting test_Cartooner1")
+    self.delayDisplay("Starting test_Cartooner")
 
     import vtkSegmentationCorePython as vtkSegmentationCore
     import vtkSlicerSegmentationsModuleLogicPython as vtkSlicerSegmentationsModuleLogic
@@ -71,31 +71,14 @@ class SegmentEditorCartoonerTest(ScriptedLoadableModuleTest):
     masterVolumeNode = sampleDataLogic.downloadMRBrainTumor1()
 
     ##################################
-    self.delayDisplay("Create segmentation containing a few spheres")
+    self.delayDisplay("Create segmentation with an empty segment")
 
     segmentationNode = slicer.vtkMRMLSegmentationNode()
     slicer.mrmlScene.AddNode(segmentationNode)
     segmentationNode.CreateDefaultDisplayNodes()
     segmentationNode.SetReferenceImageGeometryParameterFromVolumeNode(masterVolumeNode)
-
-    # Segments are defined by a list of: name and a list of sphere [radius, posX, posY, posZ]
-    segmentGeometries = [
-      ['Tumor', [[10, -6,30,28]]],
-      ['Background', [[10, 0,65,22], [15, 1, -14, 30], [12, 0, 28, -7], [5, 0,30,54], [12, 31, 33, 27], [17, -42, 30, 27], [6, -2,-17,71]]],
-      ['Air', [[10, 76,73,0], [15, -70,74,0]]] ]
-    for segmentGeometry in segmentGeometries:
-      segmentName = segmentGeometry[0]
-      appender = vtk.vtkAppendPolyData()
-      for sphere in segmentGeometry[1]:
-        sphereSource = vtk.vtkSphereSource()
-        sphereSource.SetRadius(sphere[0])
-        sphereSource.SetCenter(sphere[1], sphere[2], sphere[3])
-        appender.AddInputConnection(sphereSource.GetOutputPort())
-      segment = vtkSegmentationCore.vtkSegment()
-      segment.SetName(segmentationNode.GetSegmentation().GenerateUniqueSegmentID(segmentName))
-      appender.Update()
-      segment.AddRepresentation(vtkSegmentationCore.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName(), appender.GetOutput())
-      segmentationNode.GetSegmentation().AddSegment(segment)
+    segment = vtkSegmentationCore.vtkSegment()
+    segmentationNode.GetSegmentation().AddSegment(segment)
 
     ##################################
     self.delayDisplay("Create segment editor")
@@ -110,32 +93,10 @@ class SegmentEditorCartoonerTest(ScriptedLoadableModuleTest):
     segmentEditorWidget.setMasterVolumeNode(masterVolumeNode)
 
     ##################################
-    self.delayDisplay("Run segmentation")
+    self.delayDisplay("Run cartooner for 10 seconds")
     segmentEditorWidget.setActiveEffectByName("Cartooner")
     effect = segmentEditorWidget.activeEffect()
-    effect.setParameter("ObjectScaleMm", 3.0)
+
+    qt.QTimer.singleShot(10000, effect.self().onApply)
     effect.self().onApply()
-
-    ##################################
-    self.delayDisplay("Make segmentation results nicely visible in 3D")
-    segmentationDisplayNode = segmentationNode.GetDisplayNode()
-    segmentationDisplayNode.SetSegmentVisibility("Air", False)
-    segmentationDisplayNode.SetSegmentOpacity3D("Background",0.5)
-
-    ##################################
-    self.delayDisplay("Compute statistics")
-
-    segStatLogic = SegmentStatisticsLogic()
-    segStatLogic.computeStatistics(segmentationNode, masterVolumeNode)
-
-    # Export results to table (just to see all results)
-    resultsTableNode = slicer.vtkMRMLTableNode()
-    slicer.mrmlScene.AddNode(resultsTableNode)
-    segStatLogic.exportToTable(resultsTableNode)
-    segStatLogic.showTable(resultsTableNode)
-
-    self.delayDisplay("Check a few numerical results")
-    self.assertEqual( round(segStatLogic.statistics["Tumor","LM volume cc"]), 16)
-    self.assertEqual( round(segStatLogic.statistics["Background","LM volume cc"]), 3010)
-
-    self.delayDisplay('test_Cartooner1 passed')
+    self.delayDisplay('test_Cartooner passed')
