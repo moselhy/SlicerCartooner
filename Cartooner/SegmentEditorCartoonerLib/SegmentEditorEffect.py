@@ -68,7 +68,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
 
     # Connections
     self.applyButton.connect('clicked()', self.onApply)
-    self.sliceNodeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateGUIFromMRML)
+    self.sliceNodeSelector.connect("currentIndexChanged(int)", self.updateGUIFromMRML)
     self.hotkey.connect('activated()', self.cartoonHotkey)
     self.hotkey2.connect('activated()', self.openSettings)
 
@@ -87,6 +87,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
         self.currentOffsets[color] = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().GetSliceOffset()
         self.originalRAS[color] = self.currentOffsets[color]
 
+    # None, Red, Yellow, Green
     self.sliceNodeSelector.addItems(['None'] + self.colorsRAS[2:] + self.colorsRAS[:2])
     self.updateMRMLFromGUI()
     
@@ -117,7 +118,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     pass
 
   def updateGUIFromMRML(self):
-    if not self.runningStatus and not self.restoringViews:
+    if not self.runningStatus and not self.restoringViews and self.scriptedEffect.parameterSetNode():
         slicer.app.processEvents()
         bounds = [0] * 6
         masterVolumeNode = self.scriptedEffect.parameterSetNode().GetMasterVolumeNode()
@@ -208,6 +209,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
             timer.wait(period)
             slicer.app.processEvents()
 
+        self.updateGUIFromMRML()
         qt.QApplication.restoreOverrideCursor()
 
 
