@@ -51,14 +51,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     self.scriptedEffect.addLabeledOptionsWidget("Slice speed:", self.cartoonSpeedSlider)
 
     # Input view selector
-    self.sliceNodeSelector = slicer.qMRMLNodeComboBox()
-    self.sliceNodeSelector.nodeTypes = ["vtkMRMLSliceNode"]
-    self.sliceNodeSelector.addEnabled = False
-    self.sliceNodeSelector.removeEnabled = False
-    self.sliceNodeSelector.noneEnabled = True
-    self.sliceNodeSelector.showHidden = False
-    self.sliceNodeSelector.showChildNodeTypes = False
-    self.sliceNodeSelector.setMRMLScene( slicer.mrmlScene )
+    self.sliceNodeSelector = qt.QComboBox()
     self.sliceNodeSelector.setToolTip("This slice will be excluded during cartooning.")
     self.scriptedEffect.addLabeledOptionsWidget("Exclude view:", self.sliceNodeSelector)
 
@@ -94,6 +87,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
         self.currentOffsets[color] = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().GetSliceOffset()
         self.originalRAS[color] = self.currentOffsets[color]
 
+    self.sliceNodeSelector.addItems(['None'] + self.colorsRAS)
     self.updateMRMLFromGUI()
     
 
@@ -115,7 +109,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
   def onSliceLogicModifiedEvent(self, caller, event):
     for color in self.colorsRAS:
         sliceNode = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode()
-        if self.sliceNodeSelector.currentNode() == None or color != self.sliceNodeSelector.currentNode().GetName():
+        if color != self.sliceNodeSelector.currentText:
             if sliceNode.GetSliceOffset() != self.currentOffsets[color]:
                 self.updateGUIFromMRML()
 
@@ -134,7 +128,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
 
             for i in range(len(self.colorsRAS)):
                 color = self.colorsRAS[i]
-                if self.sliceNodeSelector.currentNode() == None or color != self.sliceNodeSelector.currentNode().GetName():
+                if color != self.sliceNodeSelector.currentText:
                     self.currentOffsets[color] = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().GetSliceOffset()
                     # Get range from min bound
                     minBound = self.currentOffsets[color] - bounds[i*2]
@@ -227,5 +221,5 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
             self.reverseStep = False
 
         self.currentStepIndex[color] = self.currentStepIndex[color] - 1 if self.reverseStep else self.currentStepIndex[color] + 1
-        if self.sliceNodeSelector.currentNode() == None or color != self.sliceNodeSelector.currentNode().GetName():
+        if color != self.sliceNodeSelector.currentText:
             slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().SetSliceOffset(self.steps[color][self.currentStepIndex[color]])
