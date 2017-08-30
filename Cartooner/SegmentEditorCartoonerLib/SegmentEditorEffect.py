@@ -87,7 +87,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
         self.currentOffsets[color] = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().GetSliceOffset()
         self.originalRAS[color] = self.currentOffsets[color]
 
-    self.sliceNodeSelector.addItems(['None'] + self.colorsRAS)
+    self.sliceNodeSelector.addItems(['None'] + self.colorsRAS[2:] + self.colorsRAS[:2])
     self.updateMRMLFromGUI()
     
 
