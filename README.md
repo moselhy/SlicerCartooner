@@ -1,5 +1,6 @@
 # Extension for [3DSlicer](http://slicer.org)
-### Cartoon through slices for easier segmentation</br>(Restores all views when stopped)
+
+### Segment Editor effect</br>Cartoon through slices for easier segmentation</br>(Restores all views when stopped)
 ![Alt text](docs/screenshot.png?raw=true "Screenshot")
 
 ## USAGE:

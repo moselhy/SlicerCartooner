@@ -197,7 +197,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
             maxOffset = stepInterval * self.cartoonRangeSlider.value
             start = self.originalRAS[color] - maxOffset
             stop = start + maxOffset * 2 + stepInterval
-            self.steps[color] = range(int(start*1000), int(stop*1000), int(stepInterval*1000))
+            self.steps[color] = range(int(round(start*1000)), int(round(stop*1000)), int(round(stepInterval*1000)))
             self.steps[color] = [float(x) / 1000 for x in self.steps[color]]
             self.currentStepIndex[color] = len(self.steps[color]) / 2
 
