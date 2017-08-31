@@ -193,7 +193,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
         self.currentStepIndex = {}
         for i in range(len(self.colorsRAS)):
             color = self.colorsRAS[i]
-            stepInterval = masterVolumeNode.GetSpacing()[i]
+            stepInterval = self.scriptedEffect.sliceSpacing(slicer.app.layoutManager().sliceWidget(color))
             maxOffset = stepInterval * self.cartoonRangeSlider.value
             start = self.originalRAS[color] - maxOffset
             stop = start + maxOffset * 2 + stepInterval
