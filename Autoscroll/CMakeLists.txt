@@ -1,6 +1,6 @@
 
 #-----------------------------------------------------------------------------
-set(MODULE_NAME SegmentEditorCartooner)
+set(MODULE_NAME SegmentEditorAutoscroll)
 
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS

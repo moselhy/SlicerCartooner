@@ -4,7 +4,7 @@ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import logging, threading
 
-class SegmentEditorCartooner(ScriptedLoadableModule):
+class SegmentEditorAutoscroll(ScriptedLoadableModule):
   """Uses ScriptedLoadableModule base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
@@ -12,7 +12,7 @@ class SegmentEditorCartooner(ScriptedLoadableModule):
   def __init__(self, parent):
     import string
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "SegmentEditorCartooner"
+    self.parent.title = "SegmentEditorAutoscroll"
     self.parent.categories = ["Segmentation"]
     self.parent.dependencies = ["Segmentations"]
     self.parent.contributors = ["Mohamed Moselhy (Western University)"]
@@ -29,7 +29,7 @@ class SegmentEditorCartooner(ScriptedLoadableModule):
     instance.setPythonSource(effectFilename.replace('\\','/'))
     instance.self().register()
 
-class SegmentEditorCartoonerTest(ScriptedLoadableModuleTest):
+class SegmentEditorAutoscrollTest(ScriptedLoadableModuleTest):
   """
   This is the test case for your scripted module.
   Uses ScriptedLoadableModuleTest base class, available at:
@@ -45,18 +45,18 @@ class SegmentEditorCartoonerTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    self.test_Cartooner()
+    self.test_Autoscroll()
 
-  def test_Cartooner(self):
+  def test_Autoscroll(self):
     """
     Basic automated test of the segmentation method:
     - Create segmentation by placing sphere-shaped seeds
     - Run segmentation
     - Verify results using segment statistics
-    The test can be executed from SelfTests module (test name: SegmentEditorCartooner)
+    The test can be executed from SelfTests module (test name: SegmentEditorAutoscroll)
     """
 
-    self.delayDisplay("Starting test_Cartooner")
+    self.delayDisplay("Starting test_Autoscroll")
 
     import vtkSegmentationCorePython as vtkSegmentationCore
     import vtkSlicerSegmentationsModuleLogicPython as vtkSlicerSegmentationsModuleLogic
@@ -93,10 +93,10 @@ class SegmentEditorCartoonerTest(ScriptedLoadableModuleTest):
     segmentEditorWidget.setMasterVolumeNode(masterVolumeNode)
 
     ##################################
-    self.delayDisplay("Run cartooner for 10 seconds")
-    segmentEditorWidget.setActiveEffectByName("Cartooner")
+    self.delayDisplay("Run autoscroll for 10 seconds")
+    segmentEditorWidget.setActiveEffectByName("Autoscroll")
     effect = segmentEditorWidget.activeEffect()
 
     qt.QTimer.singleShot(10000, effect.self().onApply)
     effect.self().onApply()
-    self.delayDisplay('test_Cartooner passed')
+    self.delayDisplay('test_Autoscroll passed')

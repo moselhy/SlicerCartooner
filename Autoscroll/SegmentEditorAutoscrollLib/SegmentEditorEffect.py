@@ -7,7 +7,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
   """This effect uses Watershed algorithm to partition the input volume"""
 
   def __init__(self, scriptedEffect):
-    scriptedEffect.name = 'Cartooner'
+    scriptedEffect.name = 'Autoscroll'
     scriptedEffect.perSegment = False # this effect operates on all segments at once (not on a single selected segment)
     AbstractScriptedSegmentEditorEffect.__init__(self, scriptedEffect)
 
@@ -26,40 +26,40 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     return qt.QIcon()
 
   def helpText(self):
-    return """This module cartoons through slices to help with segmentation, press Alt+C to start cartooning or Ctrl+Alt+C to set parameters. It does not alter the segmentation nor volumes in any way, and it restores the view when cartooning is stopped
+    return """This module autoscrolls through slices to help with segmentation, press Alt+C to start autoscrolling or Ctrl+Alt+C to set parameters. It does not alter the segmentation nor volumes in any way, and it restores the view when autoscrolling is stopped
 """
 
   def setupOptionsFrame(self):
 
      # Cartoon range slider
-    self.cartoonRangeSlider = slicer.qMRMLSliderWidget()
-    self.cartoonRangeSlider.setMRMLScene(slicer.mrmlScene)
-    self.cartoonRangeSlider.minimum = 0
-    self.cartoonRangeSlider.maximum = 10
-    self.cartoonRangeSlider.value = 5
-    self.cartoonRangeSlider.setToolTip('How many slices you would like to cartoon up and down')
-    self.scriptedEffect.addLabeledOptionsWidget("Slice range:", self.cartoonRangeSlider)
+    self.autoscrollRangeSlider = slicer.qMRMLSliderWidget()
+    self.autoscrollRangeSlider.setMRMLScene(slicer.mrmlScene)
+    self.autoscrollRangeSlider.minimum = 0
+    self.autoscrollRangeSlider.maximum = 10
+    self.autoscrollRangeSlider.value = 5
+    self.autoscrollRangeSlider.setToolTip('How many slices you would like to autoscroll up and down')
+    self.scriptedEffect.addLabeledOptionsWidget("Slice range:", self.autoscrollRangeSlider)
 
 
      # Cartoon speed slider
-    self.cartoonSpeedSlider = slicer.qMRMLSliderWidget()
-    self.cartoonSpeedSlider.setMRMLScene(slicer.mrmlScene)
-    self.cartoonSpeedSlider.minimum = 1
-    self.cartoonSpeedSlider.maximum = 100
-    self.cartoonSpeedSlider.value = 20
-    self.cartoonSpeedSlider.setToolTip('How many slices you want to cartoon per second')
-    self.scriptedEffect.addLabeledOptionsWidget("Slice speed:", self.cartoonSpeedSlider)
+    self.autoscrollSpeedSlider = slicer.qMRMLSliderWidget()
+    self.autoscrollSpeedSlider.setMRMLScene(slicer.mrmlScene)
+    self.autoscrollSpeedSlider.minimum = 1
+    self.autoscrollSpeedSlider.maximum = 100
+    self.autoscrollSpeedSlider.value = 20
+    self.autoscrollSpeedSlider.setToolTip('How many slices you want to autoscroll per second')
+    self.scriptedEffect.addLabeledOptionsWidget("Slice speed:", self.autoscrollSpeedSlider)
 
     # Input view selector
     self.sliceNodeSelector = qt.QComboBox()
-    self.sliceNodeSelector.setToolTip("This slice will be excluded during cartooning.")
+    self.sliceNodeSelector.setToolTip("This slice will be excluded during autoscrolling.")
     self.scriptedEffect.addLabeledOptionsWidget("Exclude view:", self.sliceNodeSelector)
 
 
     # Start button
     self.applyButton = qt.QPushButton("Start")
     self.applyButton.objectName = self.__class__.__name__ + 'Start'
-    self.applyButton.setToolTip("Start/Stop cartooning (Alt+C)")
+    self.applyButton.setToolTip("Start/Stop autoscrolling (Alt+C)")
     self.scriptedEffect.addOptionsWidget(self.applyButton)
 
     # Set Hotkeys
@@ -69,7 +69,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     # Connections
     self.applyButton.connect('clicked()', self.onApply)
     self.sliceNodeSelector.connect("currentIndexChanged(int)", self.updateGUIFromMRML)
-    self.hotkey.connect('activated()', self.cartoonHotkey)
+    self.hotkey.connect('activated()', self.autoscrollHotkey)
     self.hotkey2.connect('activated()', self.openSettings)
 
     # Initialize variables
@@ -92,13 +92,13 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     self.updateMRMLFromGUI()
     
 
-  def cartoonHotkey(self):
+  def autoscrollHotkey(self):
     if self.applyButton.enabled:
         self.onApply()
 
   def openSettings(self):
     slicer.util.mainWindow().moduleSelector().selectModule('SegmentEditor')
-    self.scriptedEffect.selectEffect("Cartooner")
+    self.scriptedEffect.selectEffect("Autoscroll")
 
   def createCursor(self, widget):
     # Turn off effect-specific cursor for this effect
@@ -147,8 +147,8 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
             minRange = min(ranges)
 
             self.applyButton.enabled = minRange > 0
-            self.cartoonRangeSlider.minimum = 1
-            self.cartoonRangeSlider.maximum = minRange
+            self.autoscrollRangeSlider.minimum = 1
+            self.autoscrollRangeSlider.maximum = minRange
 
 
   def updateMRMLFromGUI(self):
@@ -187,14 +187,14 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
         masterVolumeNode.GetBounds(bounds)
 
         # Get period (how many seconds to stay per slice)
-        period = 1 / self.cartoonSpeedSlider.value
+        period = 1 / self.autoscrollSpeedSlider.value
 
         self.steps = {}
         self.currentStepIndex = {}
         for i in range(len(self.colorsRAS)):
             color = self.colorsRAS[i]
             stepInterval = self.scriptedEffect.sliceSpacing(slicer.app.layoutManager().sliceWidget(color))
-            maxOffset = stepInterval * self.cartoonRangeSlider.value
+            maxOffset = stepInterval * self.autoscrollRangeSlider.value
             start = self.originalRAS[color] - maxOffset
             stop = start + maxOffset * 2 + stepInterval
             self.steps[color] = range(int(round(start*1000)), int(round(stop*1000)), int(round(stepInterval*1000)))
