@@ -17,7 +17,7 @@ class SegmentEditorAutoscroll(ScriptedLoadableModule):
     self.parent.dependencies = ["Segmentations"]
     self.parent.contributors = ["Mohamed Moselhy (Western University)"]
     self.parent.hidden = True
-    self.parent.helpText = "This module cartoons through slices to help with segmentation"
+    self.parent.helpText = "This module autoscrolls through slices to help with segmentation"
     self.parent.helpText += self.getDefaultModuleDocumentationLink()
     self.parent.acknowledgementText = "Supported by NA-MIC, NAC, BIRN, NCIGT, and the Slicer Community. See http://www.slicer.org for details."
     qt.QTimer.singleShot(0, self.registerEditorEffect)

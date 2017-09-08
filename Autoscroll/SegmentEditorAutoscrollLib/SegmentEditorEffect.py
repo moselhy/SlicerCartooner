@@ -31,7 +31,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
 
   def setupOptionsFrame(self):
 
-     # Cartoon range slider
+     # Autoscroll range slider
     self.autoscrollRangeSlider = slicer.qMRMLSliderWidget()
     self.autoscrollRangeSlider.setMRMLScene(slicer.mrmlScene)
     self.autoscrollRangeSlider.minimum = 0
@@ -41,7 +41,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     self.scriptedEffect.addLabeledOptionsWidget("Slice range:", self.autoscrollRangeSlider)
 
 
-     # Cartoon speed slider
+     # Autoscroll speed slider
     self.autoscrollSpeedSlider = slicer.qMRMLSliderWidget()
     self.autoscrollSpeedSlider.setMRMLScene(slicer.mrmlScene)
     self.autoscrollSpeedSlider.minimum = 1
