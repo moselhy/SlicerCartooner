@@ -110,7 +110,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
   def onSliceLogicModifiedEvent(self, caller, event):
     for color in self.colorsRAS:
         sliceNode = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode()
-        if color != self.sliceNodeSelector.currentText:
+        if self.sliceNodeSelector and color != self.sliceNodeSelector.currentText:
             if sliceNode.GetSliceOffset() != self.currentOffsets[color]:
                 self.updateGUIFromMRML()
 
@@ -129,7 +129,7 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
 
             for i in range(len(self.colorsRAS)):
                 color = self.colorsRAS[i]
-                if color != self.sliceNodeSelector.currentText:
+                if self.sliceNodeSelector and color != self.sliceNodeSelector.currentText:
                     self.currentOffsets[color] = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().GetSliceOffset()
                     # Get range from min bound
                     minBound = self.currentOffsets[color] - bounds[i*2]
@@ -223,5 +223,5 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
             self.reverseStep = False
 
         self.currentStepIndex[color] = self.currentStepIndex[color] - 1 if self.reverseStep else self.currentStepIndex[color] + 1
-        if color != self.sliceNodeSelector.currentText:
+        if self.sliceNodeSelector and color != self.sliceNodeSelector.currentText:
             slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().SetSliceOffset(self.steps[color][self.currentStepIndex[color]])
