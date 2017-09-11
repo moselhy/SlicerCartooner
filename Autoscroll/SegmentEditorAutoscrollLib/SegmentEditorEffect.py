@@ -26,8 +26,12 @@ class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
     return qt.QIcon()
 
   def helpText(self):
-    return """This module autoscrolls through slices to help with segmentation, press Alt+C to start autoscrolling or Ctrl+Alt+C to set parameters. It does not alter the segmentation nor volumes in any way, and it restores the view when autoscrolling is stopped
-"""
+    return """<html>This module autoscrolls through slices to help with segmentation<br>.
+It does not alter the segmentation nor volumes in any way, and it restores the view when autoscrolling is stopped
+<p><ul style="margin: 0">
+<li><b>Alt+C:</b> Start scrolling</li>
+<li><b>Ctrl+Alt+C:</b> Set parameters</li>
+</ul></p></html>"""
 
   def setupOptionsFrame(self):
 
