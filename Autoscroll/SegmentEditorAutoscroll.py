@@ -2,7 +2,7 @@ import os
 import unittest
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
-import logging, threading
+import logging
 
 class SegmentEditorAutoscroll(ScriptedLoadableModule):
   """Uses ScriptedLoadableModule base class, available at:
@@ -20,7 +20,7 @@ class SegmentEditorAutoscroll(ScriptedLoadableModule):
     self.parent.helpText = "This module autoscrolls through slices to help with segmentation"
     self.parent.helpText += self.getDefaultModuleDocumentationLink()
     self.parent.acknowledgementText = "Supported by NA-MIC, NAC, BIRN, NCIGT, and the Slicer Community. See http://www.slicer.org for details."
-    qt.QTimer.singleShot(0, self.registerEditorEffect)
+    slicer.app.connect("startupCompleted()", self.registerEditorEffect)
 
   def registerEditorEffect(self):
     import qSlicerSegmentationsEditorEffectsPythonQt as qSlicerSegmentationsEditorEffects

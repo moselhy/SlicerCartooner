@@ -1,6 +1,6 @@
 import os
 import vtk, qt, ctk, slicer
-import logging, threading
+import logging
 from SegmentEditorEffects import *
 
 class SegmentEditorEffect(AbstractScriptedSegmentEditorEffect):
@@ -38,27 +38,28 @@ It does not alter the segmentation nor volumes in any way, and it restores the v
      # Autoscroll range slider
     self.autoscrollRangeSlider = slicer.qMRMLSliderWidget()
     self.autoscrollRangeSlider.setMRMLScene(slicer.mrmlScene)
-    self.autoscrollRangeSlider.minimum = 0
+    self.autoscrollRangeSlider.minimum = 1
     self.autoscrollRangeSlider.maximum = 10
+    self.autoscrollRangeSlider.decimals = 0
     self.autoscrollRangeSlider.value = 5
+    self.autoscrollRangeSlider.suffix = " slices"
     self.autoscrollRangeSlider.setToolTip('How many slices you would like to autoscroll up and down')
     self.scriptedEffect.addLabeledOptionsWidget("Slice range:", self.autoscrollRangeSlider)
 
-
      # Autoscroll speed slider
-    self.autoscrollSpeedSlider = slicer.qMRMLSliderWidget()
-    self.autoscrollSpeedSlider.setMRMLScene(slicer.mrmlScene)
-    self.autoscrollSpeedSlider.minimum = 1
-    self.autoscrollSpeedSlider.maximum = 100
-    self.autoscrollSpeedSlider.value = 20
-    self.autoscrollSpeedSlider.setToolTip('How many slices you want to autoscroll per second')
-    self.scriptedEffect.addLabeledOptionsWidget("Slice speed:", self.autoscrollSpeedSlider)
+    self.autoscrollSpeedSliderFps = slicer.qMRMLSliderWidget()
+    self.autoscrollSpeedSliderFps.setMRMLScene(slicer.mrmlScene)
+    self.autoscrollSpeedSliderFps.minimum = 1
+    self.autoscrollSpeedSliderFps.maximum = 100
+    self.autoscrollSpeedSliderFps.value = 20
+    self.autoscrollSpeedSliderFps.suffix = " fps"
+    self.autoscrollSpeedSliderFps.setToolTip('How many slices you want to autoscroll per second')
+    self.scriptedEffect.addLabeledOptionsWidget("Slice speed:", self.autoscrollSpeedSliderFps)
 
     # Input view selector
     self.sliceNodeSelector = qt.QComboBox()
     self.sliceNodeSelector.setToolTip("This slice will be excluded during autoscrolling.")
     self.scriptedEffect.addLabeledOptionsWidget("Exclude view:", self.sliceNodeSelector)
-
 
     # Start button
     self.applyButton = qt.QPushButton("Start")
@@ -72,160 +73,133 @@ It does not alter the segmentation nor volumes in any way, and it restores the v
 
     # Connections
     self.applyButton.connect('clicked()', self.onApply)
-    self.sliceNodeSelector.connect("currentIndexChanged(int)", self.updateGUIFromMRML)
+    self.autoscrollRangeSlider.connect("valueChanged(double)", self.updateMRMLFromGUI)
+    self.autoscrollSpeedSliderFps.connect("valueChanged(double)", self.updateMRMLFromGUI)
+    self.sliceNodeSelector.connect("currentIndexChanged(int)", self.updateMRMLFromGUI)
     self.hotkey.connect('activated()', self.autoscrollHotkey)
     self.hotkey2.connect('activated()', self.openSettings)
 
+    self.timer = qt.QTimer()
+    self.timer.setSingleShot(False)
+    self.timer.setInterval(100)
+    self.timer.connect('timeout()', self.switchSlice)
+
     # Initialize variables
-    self.setupVariables()
+    self.animate = False
 
-  def setupVariables(self):
-    self.runningStatus = False
+    self.sliceViewNames = ['Yellow', 'Green', 'Red']
 
-    self.colorsRAS = ['Yellow', 'Green', 'Red']
-
-    self.restoringViews = False
-    self.currentOffsets = {}
-    self.originalRAS = {}
-    for color in self.colorsRAS:
-        self.currentOffsets[color] = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().GetSliceOffset()
-        self.originalRAS[color] = self.currentOffsets[color]
+    self.sliceObservations = []
+    self.observeSliceOffsetChange = True
+    self.originalSliceOffsets = {}
 
     # None, Red, Yellow, Green
-    self.sliceNodeSelector.addItems(['None'] + self.colorsRAS[2:] + self.colorsRAS[:2])
-    self.updateMRMLFromGUI()
-    
+    self.sliceNodeSelector.addItems(['None'] + self.sliceViewNames[2:] + self.sliceViewNames[:2])
+  
+  def createCursor(self, widget):
+    # Turn off effect-specific cursor for this effect
+    return slicer.util.mainWindow().cursor
 
+  def setMRMLDefaults(self):
+    self.scriptedEffect.setParameterDefault("ScrollRangeSlice", 5)
+    self.scriptedEffect.setParameterDefault("ScrollSpeedFps", 20.0)
+    self.scriptedEffect.setParameterDefault("ExcludeView", "")
+
+  def updateGUIFromMRML(self):
+    wasBlocked = self.autoscrollRangeSlider.blockSignals(True)
+    self.autoscrollRangeSlider.setValue(self.scriptedEffect.integerParameter("ScrollRangeSlice"))
+    self.autoscrollRangeSlider.blockSignals(wasBlocked)
+
+    wasBlocked = self.autoscrollSpeedSliderFps.blockSignals(True)
+    self.autoscrollSpeedSliderFps.setValue(self.scriptedEffect.doubleParameter("ScrollSpeedFps"))
+    self.autoscrollSpeedSliderFps.blockSignals(wasBlocked)
+
+    wasBlocked = self.sliceNodeSelector.blockSignals(True)
+    self.sliceNodeSelector.setCurrentText(self.scriptedEffect.parameter("ExcludeView"))
+    self.sliceNodeSelector.blockSignals(wasBlocked)
+
+    fps = max(self.scriptedEffect.doubleParameter("ScrollSpeedFps"), 0.1)
+    self.timer.setInterval(1000.0/fps)
+
+  def updateMRMLFromGUI(self):
+    self.scriptedEffect.setParameter("ScrollRangeSlice", int(self.autoscrollRangeSlider.value))
+    self.scriptedEffect.setParameter("ScrollSpeedFps", self.autoscrollSpeedSliderFps.value)
+    self.scriptedEffect.setParameter("ExcludeView", self.sliceNodeSelector.currentText) 
+  
   def autoscrollHotkey(self):
     if self.applyButton.enabled:
-        self.onApply()
+      self.onApply()
 
   def openSettings(self):
     slicer.util.mainWindow().moduleSelector().selectModule('SegmentEditor')
     self.scriptedEffect.selectEffect("Autoscroll")
 
-  def createCursor(self, widget):
-    # Turn off effect-specific cursor for this effect
-    return slicer.util.mainWindow().cursor
-
   def masterVolumeNodeChanged(self):
     self.updateGUIFromMRML()
 
-  def onSliceLogicModifiedEvent(self, caller, event):
-    for color in self.colorsRAS:
-        sliceNode = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode()
-        if self.sliceNodeSelector and color != self.sliceNodeSelector.currentText:
-            if sliceNode.GetSliceOffset() != self.currentOffsets[color]:
-                self.updateGUIFromMRML()
+  def onSliceNodeModified(self, caller, event):
+    if not self.observeSliceOffsetChange:
+      return
+    for sliceViewName in self.sliceViewNames:
+      self.originalSliceOffsets[sliceViewName] = slicer.app.layoutManager().sliceWidget(sliceViewName).sliceLogic().GetSliceNode().GetSliceOffset()
+    # After slice position is manually modified, reset step and wait a bit more
+    self.step = 0
+    self.switchSlice()
+    self.timer.setInterval(1000.0)
 
-  def setMRMLDefaults(self):
-    pass
+  def addSliceObservers(self):
+    for sliceViewName in self.sliceViewNames:
+        sliceNode = slicer.app.layoutManager().sliceWidget(sliceViewName).sliceLogic().GetSliceNode()
+        self.sliceObservations.append([sliceNode, sliceNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onSliceNodeModified)])
 
-  def updateGUIFromMRML(self):
-    if not self.runningStatus and not self.restoringViews and self.scriptedEffect.parameterSetNode():
-        slicer.app.processEvents()
-        bounds = [0] * 6
-        masterVolumeNode = self.scriptedEffect.parameterSetNode().GetMasterVolumeNode()
-        if masterVolumeNode:
-            masterVolumeNode.GetBounds(bounds)
-
-            ranges = []
-
-            for i in range(len(self.colorsRAS)):
-                color = self.colorsRAS[i]
-                if self.sliceNodeSelector and color != self.sliceNodeSelector.currentText:
-                    self.currentOffsets[color] = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().GetSliceOffset()
-                    # Get range from min bound
-                    minBound = self.currentOffsets[color] - bounds[i*2]
-                    # Get range from max bound
-                    maxBound = bounds[i*2+1] - self.currentOffsets[color]
-                    # Get spacing of the current color
-                    colorSpacing = masterVolumeNode.GetSpacing()[i]
-                    # Parse ranges into their respective spacings
-                    ranges.append(minBound / colorSpacing)
-                    ranges.append(maxBound / colorSpacing)
-
-            # Round ranges down
-            ranges = [int(r) for r in ranges]
-
-            minRange = min(ranges)
-
-            self.applyButton.enabled = minRange > 0
-            self.autoscrollRangeSlider.minimum = 1
-            self.autoscrollRangeSlider.maximum = minRange
-
-
-  def updateMRMLFromGUI(self):
-    for color in self.colorsRAS:
-        sliceNode = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode()
-        sliceNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onSliceLogicModifiedEvent)
-
-  def onRunningStatusChanged(self):
-    self.runningStatus = not self.runningStatus
-    self.applyButton.text = "Stop" if self.runningStatus else "Start"
+  def removeSliceObservers(self):
+    for sliceObservation in self.sliceObservations:
+      sliceObservation[0].RemoveObserver(sliceObservation[1])
+    self.sliceObservations = []
 
   def onApply(self):
-    self.onRunningStatusChanged()
+    self.animate = not self.animate
+    self.applyButton.text = "Stop" if self.animate else "Start"
 
-    if not self.runningStatus:
-        self.restoringViews = True
-        # Restore original view to before button was pressed
-        for color in self.colorsRAS:
-            slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().SetSliceOffset(self.originalRAS[color])
-        self.restoringViews = False
-
+    if not self.animate:
+      self.timer.stop()
+      # Restore original view to before button was pressed
+      self.observeSliceOffsetChange = False
+      self.removeSliceObservers()
+      for sliceViewName in self.sliceViewNames:
+        slicer.app.layoutManager().sliceWidget(sliceViewName).sliceLogic().GetSliceNode().SetSliceOffset(self.originalSliceOffsets[sliceViewName])
+      self.observeSliceOffsetChange = True
     else:
-        pathToCursor = os.path.join(os.path.dirname(__file__), 'cursor.png')
-        pixelMap = qt.QPixmap(pathToCursor)
-        cursor = qt.QCursor(pixelMap)
+      self.addSliceObservers()
+      self.originalSliceOffsets = {}
+      for sliceViewName in self.sliceViewNames:
+        self.originalSliceOffsets[sliceViewName] = slicer.app.layoutManager().sliceWidget(sliceViewName).sliceLogic().GetSliceNode().GetSliceOffset()
+      self.step = 0
+      self.stepIncrement = 1
+      self.timer.start()
 
-        qt.QApplication.setOverrideCursor(cursor)
+  def switchSlice(self):
+    self.observeSliceOffsetChange = False
 
-        self.originalRAS = {}
-        for color in self.colorsRAS:
-            self.originalRAS[color] = slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().GetSliceOffset()
+    excludedSlice = self.scriptedEffect.parameter("ExcludeView")
+    for sliceViewName in self.sliceViewNames:
+      if sliceViewName == excludedSlice:
+        continue
+      sliceLogic = slicer.app.layoutManager().sliceWidget(sliceViewName).sliceLogic()
+      spacing = sliceLogic.GetLowestVolumeSliceSpacing()
+      offset = self.originalSliceOffsets[sliceViewName] + self.step * spacing[2]
+      sliceLogic.GetSliceNode().SetSliceOffset(offset)
 
-        masterVolumeNode = self.scriptedEffect.parameterSetNode().GetMasterVolumeNode()
+    # When slice is manually moved then scroll speed is temporarily increased.
+    # Restore it now.
+    fps = max(self.scriptedEffect.doubleParameter("ScrollSpeedFps"), 0.1)
+    self.timer.setInterval(1000.0/fps)
 
-        bounds = [0] * 6
-        masterVolumeNode.GetBounds(bounds)
+    stepRange = self.scriptedEffect.integerParameter("ScrollRangeSlice")
+    if self.step >= stepRange:
+      self.stepIncrement = -1
+    elif self.step <= -stepRange:
+      self.stepIncrement = +1
+    self.step += self.stepIncrement
 
-        # Get period (how many seconds to stay per slice)
-        period = 1 / self.autoscrollSpeedSlider.value
-
-        self.steps = {}
-        self.currentStepIndex = {}
-        for i in range(len(self.colorsRAS)):
-            color = self.colorsRAS[i]
-            stepInterval = self.scriptedEffect.sliceSpacing(slicer.app.layoutManager().sliceWidget(color))
-            maxOffset = stepInterval * self.autoscrollRangeSlider.value
-            start = self.originalRAS[color] - maxOffset
-            stop = start + maxOffset * 2 + stepInterval
-            self.steps[color] = range(int(round(start*1000)), int(round(stop*1000)), int(round(stepInterval*1000)))
-            self.steps[color] = [float(x) / 1000 for x in self.steps[color]]
-            self.currentStepIndex[color] = len(self.steps[color]) / 2
-
-        self.reverseStep = False
-        timer = threading.Event()
-
-        while self.runningStatus:
-            self.stepThrough()
-            timer.wait(period)
-            slicer.app.processEvents()
-
-        self.updateGUIFromMRML()
-        qt.QApplication.restoreOverrideCursor()
-
-
-  def stepThrough(self):
-    for color in self.colorsRAS:
-        # If it is at the end, reverse playback
-        if self.currentStepIndex[color] >= len(self.steps[color]) - 1:
-            self.reverseStep = True
-        # If it is in the beginning, normal playback
-        elif self.currentStepIndex[color] == 0:
-            self.reverseStep = False
-
-        self.currentStepIndex[color] = self.currentStepIndex[color] - 1 if self.reverseStep else self.currentStepIndex[color] + 1
-        if self.sliceNodeSelector and color != self.sliceNodeSelector.currentText:
-            slicer.app.layoutManager().sliceWidget(color).sliceLogic().GetSliceNode().SetSliceOffset(self.steps[color][self.currentStepIndex[color]])
+    self.observeSliceOffsetChange = True
